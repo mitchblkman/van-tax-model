@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1520" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Van Tax" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Van Tax Model</title>
+
+  <!-- React + Babel via CDN — no install needed -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; overflow-x: hidden; background: #0d1520; }
+    body { overscroll-behavior: none; -webkit-font-smoothing: antialiased; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; }
+    input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #1e3045; border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: currentColor; margin-top: -10px; cursor: pointer; box-shadow: 0 0 0 3px #0d152088; }
+    input[type=text] { background: #0a1520; border: 1px solid #1e3045; border-radius: 6px; color: #ccd8e8; font-family: 'DM Mono', monospace; font-size: 11px; padding: 5px 8px; width: 100%; }
+    input[type=text]:focus { outline: none; border-color: #4fc3f7; }
+    .tab-scroll { display: flex; overflow-x: auto; scrollbar-width: none; }
+    .tab-scroll::-webkit-scrollbar { display: none; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #1e3045; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback } = React;
+
+    // ── Formatters ─────────────────────────────────────────────────────────
+    const fmtAUD = (n) => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
+    const fmtPct = (n) => `${(n * 100).toFixed(1)}%`;
+
+    // ── Tax logic ──────────────────────────────────────────────────────────
+    function grossTax(ti) {
+      if (ti <= 18200) return 0;
+      if (ti <= 45000) return (ti - 18200) * 0.19;
+      if (ti <= 120000) return 5092 + (ti - 45000) * 0.325;
+      if (ti <= 180000) return 29467 + (ti - 120000) * 0.37;
+      return 51667 + (ti - 180000) * 0.45;
+    }
+    function lito(ti) {
+      if (ti <= 37500) return 700;
+      if (ti <= 45000) return 700 - (ti - 37500) * 0.05;
+      if (ti <= 66667) return 700 - (ti - 37500) * 0.05 - (ti - 45000) * 0.015;
+      return 0;
+    }
+    function empPayg(wage) {
+      const w = wage / 52;
+      if (w <= 359) return 0;
+      if (w <= 438) return Math.max(0, (w * 0.19 - 68.35) * 52);
+      if (w <= 865) return (w * 0.2348 - 83.88) * 52;
+      if (w <= 1282) return (w * 0.219 - 69.19) * 52;
+      if (w <= 2307) return (w * 0.3477 - 236.88) * 52;
+      if (w <= 3461) return (w * 0.345 - 230.66) * 52;
+      return (w * 0.39 - 386.82) * 52;
+    }
+
+    const BRACKETS = [
+      { label: "$0–$18,200",  top: 18200,    rate: "0%",    color: "#4ade80" },
+      { label: "$18k–$45k",   top: 45000,    rate: "19¢",   color: "#a3e635" },
+      { label: "$45k–$120k",  top: 120000,   rate: "32.5¢", color: "#facc15" },
+      { label: "$120k–$180k", top: 180000,   rate: "37¢",   color: "#fb923c" },
+      { label: "$180k+",      top: Infinity, rate: "45¢",   color: "#f87171" },
+    ];
+
+    // ── Defaults ───────────────────────────────────────────────────────────
+    const DEFAULT_BUILDS = {
+      t1: { name: "Type 1 — Budget",  salePrice: 45000, buildCost: 28000 },
+      t2: { name: "Type 2 — Premium", salePrice: 77500, buildCost: 51500 },
+    };
+    const DEFAULT_STRATS = [
+      { name: "Year 1 — Entry",   vansT1: 8, vansT2: 2 },
+      { name: "Year 2 — Growth",  vansT1: 5, vansT2: 5 },
+      { name: "Year 3 — Premium", vansT1: 2, vansT2: 8 },
+    ];
+    const DEFAULT_CFG = {
+      running: 18000, superAmt: 10000, paygRate: 0.04,
+      ctp: 650, rego: 380, dutyRate: 0.03, vanBase: 25000,
+      dealer: 1100, trust: 285, workers: 1200,
+      gstOnBuild: 0.80, gstOnExp: 0.70,
+      empEnabled: false, numEmployees: 1, avgWage: 65000,
+      superRate: 0.115, wcEmpRate: 0.022,
+    };
+
+    // ── Compute ────────────────────────────────────────────────────────────
+    function compute(c, builds, vT1, vT2) {
+      const G = 0.10, total = vT1 + vT2;
+      if (total === 0) return null;
+      const t1Rev = builds.t1.salePrice / 1.1, t2Rev = builds.t2.salePrice / 1.1;
+      const t1Bld = builds.t1.buildCost / (1 + G * c.gstOnBuild);
+      const t2Bld = builds.t2.buildCost / (1 + G * c.gstOnBuild);
+      const annRev = t1Rev * vT1 + t2Rev * vT2;
+      const annBld = t1Bld * vT1 + t2Bld * vT2;
+      const gstOut = annRev * G;
+      const gstInB = ((builds.t1.buildCost * c.gstOnBuild / 1.1) * G * vT1) + ((builds.t2.buildCost * c.gstOnBuild / 1.1) * G * vT2);
+      const gstInE = (c.running * c.gstOnExp / 1.1) * G;
+      const netGST = gstOut - gstInB - gstInE;
+      const expDed = c.running / (1 + G * c.gstOnExp);
+      const supDed = c.superAmt;
+      const wages = c.empEnabled ? c.numEmployees * c.avgWage : 0;
+      const eSup = wages * c.superRate, eWC = wages * c.wcEmpRate;
+      const wageBill = wages + eSup;
+      const ePT = c.empEnabled && wages > 1200000 ? (wages - 1200000) * 0.0545 : 0;
+      const ePAYG = c.empEnabled ? c.numEmployees * empPayg(c.avgWage) : 0;
+      const eGovt = eSup + eWC + ePT;
+      const eAllDed = c.empEnabled ? wageBill + eWC + ePT : 0;
+      const taxInc = annRev - annBld - expDed - supDed - eAllDed;
+      const gTax = grossTax(taxInc), li = lito(taxInc);
+      const sb = Math.min(1000, gTax * 0.16), med = taxInc * 0.02;
+      const netTax = Math.max(0, gTax - li - sb + med);
+      const paygAnn = taxInc * c.paygRate;
+      const regTot = (c.vanBase * c.dutyRate + c.ctp + c.rego) * total;
+      const dealAnn = c.dealer + c.trust;
+      const totGovt = netGST + netTax + regTot + dealAnn + c.workers + eGovt;
+      const netProf = annRev - annBld - expDed - totGovt - (c.empEnabled ? wageBill : 0);
+      return {
+        total, vT1, vT2, t1Rev, t2Rev, t1Bld, t2Bld,
+        t1GP: (t1Rev - t1Bld) * vT1, t2GP: (t2Rev - t2Bld) * vT2,
+        annRev, annBld, expDed, supDed, taxInc,
+        gstOut, gstInB, gstInE, netGST,
+        gTax, litoAmt: li, sbito: sb, medicare: med, netTax,
+        paygAnn, paygQtr: paygAnn / 4,
+        regTot, dealAnn,
+        wages, eSup, eWC, ePT, ePAYG, eGovt, wageBill, eAllDed,
+        totGovt, netProf,
+        netMargin: netProf / Math.max(1, annRev),
+        effTax: netTax / Math.max(1, taxInc),
+        effGovt: totGovt / Math.max(1, annRev),
+        profPerVan: netProf / total,
+      };
+    }
+
+    // ── Style tokens ───────────────────────────────────────────────────────
+    const M = { fontFamily: "'DM Mono', monospace" };
+    const CARD = { background: "#111e2e", border: "1px solid #1e3045", borderRadius: 12, padding: "13px 14px", marginBottom: 10 };
+    const SL = { ...M, fontSize: 9, color: "#4a6070", textTransform: "uppercase", letterSpacing: "0.13em", display: "block", marginBottom: 9 };
+    const T1 = "#4fc3f7", T2 = "#c084fc", EM = "#f59e0b";
+
+    // ── Atoms ──────────────────────────────────────────────────────────────
+    function Row({ label, value, accent, bold, indent, last, sub }) {
+      return (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom: last ? "none" : "1px solid #0d1926" }}>
+          <div style={{ flex:1, marginRight:8, paddingLeft: indent ? 10 : 0 }}>
+            <span style={{ ...M, fontSize:12, color: bold ? "#ccd8e8" : "#7a94a8", fontWeight: bold ? 700 : 400 }}>{label}</span>
+            {sub && <div style={{ ...M, fontSize:9, color:"#334455", marginTop:1 }}>{sub}</div>}
+          </div>
+          <span style={{ ...M, fontSize:13, color: accent || (bold ? "#e8f4fd" : "#556677"), fontWeight: bold ? 700 : 500, flexShrink:0 }}>{value}</span>
+        </div>
+      );
+    }
+
+    function Bar({ label, value, max, color }) {
+      const w = Math.min(100, max > 0 ? (value / max) * 100 : 0);
+      return (
+        <div style={{ marginBottom:9 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+            <span style={{ ...M, fontSize:11, color:"#7a94a8" }}>{label}</span>
+            <span style={{ ...M, fontSize:11, color, fontWeight:700 }}>{fmtAUD(value)}</span>
+          </div>
+          <div style={{ height:5, background:"#0d1926", borderRadius:3 }}>
+            <div style={{ width:`${w}%`, height:"100%", background:color, borderRadius:3, transition:"width 0.3s ease" }} />
+          </div>
+        </div>
+      );
+    }
+
+    function Slider({ label, value, onChange, min, max, step, format, note, color = T1 }) {
+      const display = format === "currency" ? fmtAUD(value) : format === "pct" ? fmtPct(value) : value.toLocaleString();
+      return (
+        <div style={{ marginBottom:13 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:1 }}>
+            <span style={{ ...M, fontSize:11, color:"#8899aa" }}>{label}</span>
+            <span style={{ ...M, fontSize:15, fontWeight:700, color }}>{display}</span>
+          </div>
+          {note && <div style={{ ...M, fontSize:9, color:"#334455", marginBottom:2 }}>{note}</div>}
+          <input type="range" min={min} max={max} step={step} value={value}
+            onChange={e => onChange(Number(e.target.value))}
+            style={{ width:"100%", accentColor:color, cursor:"pointer", color }} />
+        </div>
+      );
+    }
+
+    function Toggle({ value, onChange }) {
+      return (
+        <div onClick={() => onChange(!value)} style={{
+          width:44, height:24, borderRadius:12, cursor:"pointer", flexShrink:0,
+          background: value ? EM : "#1e3045", position:"relative", transition:"background 0.2s",
+          border:`1px solid ${value ? EM : "#2a3f55"}`,
+        }}>
+          <div style={{ position:"absolute", top:3, left: value ? 22 : 3, width:16, height:16, borderRadius:"50%", background: value ? "#fff" : "#4a6070", transition:"left 0.2s" }} />
+        </div>
+      );
+    }
+
+    const TABS = [
+      { id:"strategy", icon:"▦", label:"Strategy" },
+      { id:"overview", icon:"◈", label:"Overview"  },
+      { id:"builds",   icon:"⬡", label:"Builds"    },
+      { id:"tax",      icon:"◉", label:"Tax"        },
+      { id:"staff",    icon:"◧", label:"Staff"      },
+    ];
+
+    // ── localStorage helpers ───────────────────────────────────────────────
+    const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
+    const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+    // ── App ────────────────────────────────────────────────────────────────
+    function App() {
+      const [cfg, setCfg]           = useState(() => load("vtm_cfg", DEFAULT_CFG));
+      const [builds, setBuilds]     = useState(() => load("vtm_builds", DEFAULT_BUILDS));
+      const [strats, setStrats]     = useState(() => load("vtm_strats", DEFAULT_STRATS));
+      const [active, setActive]     = useState(() => load("vtm_active", 0));
+      const [tab, setTab]           = useState("strategy");
+      const [adv, setAdv]           = useState(false);
+      const [flash, setFlash]       = useState(false);
+
+      useEffect(() => { save("vtm_cfg",    cfg);    }, [cfg]);
+      useEffect(() => { save("vtm_builds", builds); }, [builds]);
+      useEffect(() => { save("vtm_strats", strats); }, [strats]);
+      useEffect(() => { save("vtm_active", active); }, [active]);
+
+      const showFlash = useCallback(() => { setFlash(true); setTimeout(() => setFlash(false), 1200); }, []);
+      useEffect(() => { showFlash(); }, [cfg, builds, strats]);
+
+      const sc  = k => v => setCfg(c => ({ ...c, [k]: v }));
+      const sb  = (t, k) => v => setBuilds(b => ({ ...b, [t]: { ...b[t], [k]: v } }));
+      const ss  = (i, k) => v => setStrats(s => s.map((x, j) => j === i ? { ...x, [k]: v } : x));
+      const sn  = (i, v) => setStrats(s => s.map((x, j) => j === i ? { ...x, name: v } : x));
+
+      const st      = strats[active];
+      const r       = useMemo(() => compute(cfg, builds, st.vansT1, st.vansT2), [cfg, builds, st]);
+      const allR    = useMemo(() => strats.map(s => compute(cfg, builds, s.vansT1, s.vansT2)), [cfg, builds, strats]);
+
+      const reset = () => { if (window.confirm("Reset all data to defaults?")) { setCfg(DEFAULT_CFG); setBuilds(DEFAULT_BUILDS); setStrats(DEFAULT_STRATS); setActive(0); } };
+
+      return (
+        <div style={{ background:"#0d1520", minHeight:"100dvh", color:"#ccd8e8", display:"flex", flexDirection:"column", width:"100%", maxWidth:"100vw", overflowX:"hidden" }}>
+
+          {/* ── Header ────────────────────────────────────────────────── */}
+          <div style={{ position:"sticky", top:0, zIndex:10, background:"#0d1520", borderBottom:"1px solid #1a2535" }}>
+            <div style={{ padding:"10px 14px 0" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                <div>
+                  <div style={{ ...M, fontSize:8, color:"#3a5060", letterSpacing:"0.2em", textTransform:"uppercase", marginBottom:1 }}>NSW · Sole Trader · 2024–25</div>
+                  <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:22, color:"#e8f4fd", letterSpacing:"0.06em", lineHeight:1 }}>VAN TAX MODEL</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:4 }}>
+                  {flash && <span style={{ ...M, fontSize:9, color:"#4ade80" }}>✓ saved</span>}
+                  <button onClick={reset} style={{ background:"none", border:"1px solid #1e3045", borderRadius:6, cursor:"pointer", fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a5060", padding:"4px 8px", textTransform:"uppercase" }}>Reset</button>
+                </div>
+              </div>
+
+              {r && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:8 }}>
+                  {[
+                    { l:"Revenue",    v: fmtAUD(r.annRev),  c: T1 },
+                    { l:"Net Profit", v: fmtAUD(r.netProf), c: r.netProf >= 0 ? "#4ade80" : "#f87171" },
+                    { l:"Tax",        v: fmtAUD(r.netTax),  c: "#facc15" },
+                  ].map(k => (
+                    <div key={k.l} style={{ background:"#0a1520", border:"1px solid #1e3045", borderRadius:8, padding:"7px 8px" }}>
+                      <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:2 }}>{k.l}</div>
+                      <div style={{ ...M, fontSize:15, fontWeight:700, color:k.c, lineHeight:1 }}>{k.v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="tab-scroll">
+                {TABS.map(t => (
+                  <button key={t.id} onClick={() => setTab(t.id)} style={{
+                    background:"none", border:"none", cursor:"pointer", flexShrink:0,
+                    padding:"7px 12px", fontFamily:"'DM Mono', monospace", fontSize:11,
+                    letterSpacing:"0.08em", textTransform:"uppercase",
+                    color: tab === t.id ? (t.id==="staff" ? EM : t.id==="builds" ? T2 : T1) : "#3a5060",
+                    borderBottom: tab === t.id ? `2px solid ${t.id==="staff" ? EM : t.id==="builds" ? T2 : T1}` : "2px solid transparent",
+                    borderRadius:0,
+                  }}>{t.icon} {t.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Body ──────────────────────────────────────────────────── */}
+          <div style={{ flex:1, overflowY:"auto", width:"100%", WebkitOverflowScrolling:"touch" }}>
+
+            {/* ═══ STRATEGY ═══ */}
+            {tab === "strategy" && (
+              <div style={{ padding:"12px 14px 80px" }}>
+
+                {/* Build type definitions */}
+                <div style={CARD}>
+                  <span style={SL}>Define Build Types</span>
+                  {["t1","t2"].map((key, bi) => {
+                    const col = key === "t1" ? T1 : T2;
+                    const gm = builds[key].salePrice / 1.1 - builds[key].buildCost / (1 + 0.10 * 0.80);
+                    return (
+                      <div key={key}>
+                        {bi > 0 && <div style={{ height:1, background:"#1a2535", margin:"10px 0 14px" }} />}
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                          <div style={{ width:10, height:10, borderRadius:"50%", background:col, flexShrink:0 }} />
+                          <input type="text" value={builds[key].name} onChange={e => sb(key,"name")(e.target.value)} style={{ color:col, borderColor:col+"44" }} />
+                        </div>
+                        <Slider label="Sale Price (incl. GST)" value={builds[key].salePrice} onChange={sb(key,"salePrice")} min={15000} max={150000} step={500} format="currency" color={col} />
+                        <Slider label="Build Cost (incl. GST)" value={builds[key].buildCost} onChange={sb(key,"buildCost")} min={10000} max={120000} step={500} format="currency" color={col} />
+                        <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 0" }}>
+                          <span style={{ ...M, fontSize:11, color:"#4a6070" }}>Gross margin / van</span>
+                          <span style={{ ...M, fontSize:13, fontWeight:700, color:col }}>{fmtAUD(gm)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Strategy planner */}
+                <div style={CARD}>
+                  <span style={SL}>12-Month Strategy Planner</span>
+
+                  {/* Plan selector */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:10 }}>
+                    <div />
+                    {strats.map((s, i) => (
+                      <button key={i} onClick={() => setActive(i)} style={{
+                        background: active===i ? "#1a2e42" : "none",
+                        border:`1px solid ${active===i ? T1 : "#1e3045"}`,
+                        borderRadius:8, padding:"6px 4px", cursor:"pointer",
+                      }}>
+                        <div style={{ ...M, fontSize:9, color: active===i ? T1 : "#4a6070", fontWeight:700 }}>
+                          {active===i ? "▶ ACTIVE" : `Plan ${i+1}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Names */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:12 }}>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", display:"flex", alignItems:"center" }}>Name</div>
+                    {strats.map((s, i) => (
+                      <input key={i} type="text" value={s.name} onChange={e => sn(i, e.target.value)}
+                        style={{ fontSize:9, padding:"3px 5px", borderColor: active===i ? T1+"55" : "#1e3045" }} />
+                    ))}
+                  </div>
+
+                  {/* T1 sliders */}
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:T1 }} />
+                      <span style={{ ...M, fontSize:10, color:T1 }}>{builds.t1.name} — vans/yr</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4 }}>
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ ...M, fontSize:22, fontWeight:700, color:T1 }}>{st.vansT1}</span>
+                      </div>
+                      {strats.map((s, i) => (
+                        <div key={i}>
+                          <div style={{ ...M, fontSize:14, fontWeight:700, color:T1, textAlign:"center", marginBottom:2 }}>{s.vansT1}</div>
+                          <input type="range" min={0} max={30} step={1} value={s.vansT1}
+                            onChange={e => ss(i,"vansT1")(Number(e.target.value))}
+                            style={{ width:"100%", accentColor:T1, color:T1 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* T2 sliders */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:T2 }} />
+                      <span style={{ ...M, fontSize:10, color:T2 }}>{builds.t2.name} — vans/yr</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4 }}>
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ ...M, fontSize:22, fontWeight:700, color:T2 }}>{st.vansT2}</span>
+                      </div>
+                      {strats.map((s, i) => (
+                        <div key={i}>
+                          <div style={{ ...M, fontSize:14, fontWeight:700, color:T2, textAlign:"center", marginBottom:2 }}>{s.vansT2}</div>
+                          <input type="range" min={0} max={30} step={1} value={s.vansT2}
+                            onChange={e => ss(i,"vansT2")(Number(e.target.value))}
+                            style={{ width:"100%", accentColor:T2, color:T2 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Total row */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, padding:"6px 0", borderTop:"1px solid #1a2535", marginBottom:12 }}>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", display:"flex", alignItems:"center" }}>Total</div>
+                    {strats.map((s, i) => (
+                      <div key={i} style={{ textAlign:"center" }}>
+                        <span style={{ ...M, fontSize:15, fontWeight:700, color:"#e8f4fd" }}>{s.vansT1+s.vansT2}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Results comparison */}
+                  {[
+                    { label:"Revenue",   key:"annRev",    color:T1,        fmt:fmtAUD },
+                    { label:"GST (ATO)", key:"netGST",    color:"#fb923c", fmt:fmtAUD },
+                    { label:"Inc. Tax",  key:"netTax",    color:"#f87171", fmt:fmtAUD },
+                    { label:"Govt Total",key:"totGovt",   color:"#f87171", fmt:fmtAUD },
+                    { label:"Net Profit",key:"netProf",   color:"#4ade80", fmt:fmtAUD, bold:true },
+                    { label:"Margin",    key:"netMargin", color:"#facc15", fmt:fmtPct, bold:true },
+                  ].map(row => (
+                    <div key={row.key} style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:4 }}>
+                      <div style={{ ...M, fontSize:9, color:"#4a6070", display:"flex", alignItems:"center", lineHeight:1.3 }}>{row.label}</div>
+                      {allR.map((res, i) => (
+                        <div key={i} style={{ background: active===i ? "#0f1c2c" : "transparent", borderRadius:6, padding:"5px 4px", textAlign:"center", border:`1px solid ${active===i ? "#1e3045" : "transparent"}` }}>
+                          <span style={{ ...M, fontSize:12, fontWeight: row.bold ? 700 : 500, color: res ? (row.key==="netProf" && res[row.key]<0 ? "#f87171" : row.color) : "#334455" }}>
+                            {res ? row.fmt(res[row.key]) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Active plan detail */}
+                {r && (
+                  <div style={{ ...CARD, border:`1px solid ${T1}33` }}>
+                    <span style={{ ...SL, color:T1 }}>Active Plan — {st.name}</span>
+                    <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                      {[
+                        { key:"t1", color:T1, vans:st.vansT1, gross:r.t1GP },
+                        { key:"t2", color:T2, vans:st.vansT2, gross:r.t2GP },
+                      ].map(b => (
+                        <div key={b.key} style={{ flex:Math.max(b.vans,0.5), background:b.color+"14", border:`1px solid ${b.color}33`, borderRadius:10, padding:"10px 12px", minWidth:0 }}>
+                          <div style={{ ...M, fontSize:9, color:b.color, textTransform:"uppercase", marginBottom:3 }}>{builds[b.key].name.split("—")[0]}</div>
+                          <div style={{ ...M, fontSize:22, fontWeight:700, color:b.color }}>{b.vans}</div>
+                          <div style={{ ...M, fontSize:9, color:"#4a6070" }}>{fmtAUD(b.gross)} gross</div>
+                        </div>
+                      ))}
+                    </div>
+                    <Row label="Revenue (ex GST)"    value={fmtAUD(r.annRev)}          accent={T1} />
+                    <Row label="Build Costs"         value={`–${fmtAUD(r.annBld)}`}    indent />
+                    <Row label="Running Expenses"    value={`–${fmtAUD(r.expDed)}`}    indent />
+                    {cfg.empEnabled && <Row label="Staff Wages + Super" value={`–${fmtAUD(r.wageBill)}`} accent={EM} indent />}
+                    <Row label="All Govt Costs"      value={`–${fmtAUD(r.totGovt)}`}   accent="#fb923c" indent />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="NET PROFIT"          value={fmtAUD(r.netProf)}          accent={r.netProf>=0 ? "#4ade80" : "#f87171"} bold />
+                    <Row label="Per Van"             value={fmtAUD(r.profPerVan)}       accent="#4ade80" last />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══ OVERVIEW ═══ */}
+            {tab === "overview" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={CARD}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <span style={SL}>Global Inputs</span>
+                    <button onClick={() => setAdv(v => !v)} style={{ background:"none", border:"1px solid #1e3045", borderRadius:6, cursor:"pointer", fontFamily:"'DM Mono',monospace", fontSize:9, color: adv ? T1 : "#3a5060", padding:"3px 10px", textTransform:"uppercase" }}>{adv ? "▲ Less" : "▼ More"}</button>
+                  </div>
+                  <Slider label="Running Expenses / Year" value={cfg.running}   onChange={sc("running")}   min={0}    max={80000}  step={500}   format="currency" note="Insurance, tools, fuel, marketing" />
+                  <Slider label="Concessional Super"      value={cfg.superAmt}  onChange={sc("superAmt")}  min={0}    max={30000}  step={500}   format="currency" note="Pre-tax, deductible (cap $30k)" />
+                  <Slider label="PAYG Instalment Rate"    value={cfg.paygRate}  onChange={sc("paygRate")}  min={0.01} max={0.10}   step={0.005} format="pct" />
+                  {adv && <>
+                    <div style={{ height:1, background:"#1a2535", margin:"4px 0 10px" }} />
+                    <Slider label="Van Purchase Price (duty)" value={cfg.vanBase}    onChange={sc("vanBase")}    min={5000}  max={80000} step={500}   format="currency" />
+                    <Slider label="Duty Rate"                 value={cfg.dutyRate}   onChange={sc("dutyRate")}   min={0.01}  max={0.06}  step={0.005} format="pct" note="NSW ~3%" />
+                    <Slider label="CTP / Van"                 value={cfg.ctp}        onChange={sc("ctp")}        min={300}   max={2000}  step={50}    format="currency" />
+                    <Slider label="Rego Fee / Van"            value={cfg.rego}       onChange={sc("rego")}       min={100}   max={1000}  step={10}    format="currency" />
+                    <Slider label="Dealer Licence"            value={cfg.dealer}     onChange={sc("dealer")}     min={500}   max={3000}  step={50}    format="currency" />
+                    <Slider label="Trust Account Fee"         value={cfg.trust}      onChange={sc("trust")}      min={0}     max={1000}  step={25}    format="currency" />
+                    <Slider label="Owner Workers Comp"        value={cfg.workers}    onChange={sc("workers")}    min={0}     max={5000}  step={100}   format="currency" />
+                    <Slider label="GST on Build Inputs %"     value={cfg.gstOnBuild} onChange={sc("gstOnBuild")} min={0.5}   max={1}     step={0.05}  format="pct" />
+                    <Slider label="GST on Running Exp %"      value={cfg.gstOnExp}   onChange={sc("gstOnExp")}   min={0.3}   max={1}     step={0.05}  format="pct" />
+                  </>}
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                  <div style={{ ...CARD, marginBottom:0 }}>
+                    <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>Annual Revenue</div>
+                    <div style={{ ...M, fontSize:16, fontWeight:700, color:T1 }}>{fmtAUD(r.annRev)}</div>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", marginTop:2 }}>{r.total} vans · {st.name}</div>
+                  </div>
+                  <div style={{ ...CARD, marginBottom:0 }}>
+                    <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>Net Profit</div>
+                    <div style={{ ...M, fontSize:16, fontWeight:700, color: r.netProf>=0 ? "#4ade80" : "#f87171" }}>{fmtAUD(r.netProf)}</div>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", marginTop:2 }}>{fmtAUD(r.profPerVan)} / van</div>
+                  </div>
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Build Mix — {st.name}</span>
+                  <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                    {[{key:"t1",color:T1,vans:st.vansT1,gross:r.t1GP},{key:"t2",color:T2,vans:st.vansT2,gross:r.t2GP}].map(b => (
+                      <div key={b.key} style={{ flex:1, background:b.color+"14", border:`1px solid ${b.color}33`, borderRadius:10, padding:"10px 12px" }}>
+                        <div style={{ ...M, fontSize:9, color:b.color, textTransform:"uppercase", marginBottom:4 }}>{builds[b.key].name}</div>
+                        <div style={{ ...M, fontSize:22, fontWeight:700, color:b.color }}>{b.vans}</div>
+                        <div style={{ ...M, fontSize:9, color:"#4a6070" }}>{fmtAUD(b.gross)} gross</div>
+                      </div>
+                    ))}
+                  </div>
+                  <Bar label="T1 Gross Profit" value={r.t1GP} max={r.t1GP+r.t2GP} color={T1} />
+                  <Bar label="T2 Gross Profit" value={r.t2GP} max={r.t1GP+r.t2GP} color={T2} />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Annual P&amp;L</span>
+                  <Row label="Revenue (ex GST)"     value={fmtAUD(r.annRev)}         accent={T1} />
+                  <Row label="Build Costs (ex GST)" value={`–${fmtAUD(r.annBld)}`}  accent="#f87171" indent />
+                  <Row label="Running Expenses"      value={`–${fmtAUD(r.expDed)}`}  indent />
+                  {cfg.empEnabled && <Row label="Staff Wages + Super" value={`–${fmtAUD(r.wageBill)}`} accent={EM} indent />}
+                  <Row label="All Govt Costs"        value={`–${fmtAUD(r.totGovt)}`} accent="#fb923c" indent />
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="NET PROFIT" value={fmtAUD(r.netProf)} accent={r.netProf>=0?"#4ade80":"#f87171"} bold last />
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginTop:10 }}>
+                    {[
+                      { l:"Margin",  v:fmtPct(r.netMargin), c:"#4ade80" },
+                      { l:"Govt %",  v:fmtPct(r.effGovt),   c:"#fb923c" },
+                      { l:"Tax Rate",v:fmtPct(r.effTax),    c:"#facc15" },
+                    ].map(k => (
+                      <div key={k.l} style={{ background:"#0a1520", borderRadius:8, padding:"7px 6px", textAlign:"center" }}>
+                        <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>{k.l}</div>
+                        <div style={{ ...M, fontSize:14, color:k.c, fontWeight:700 }}>{k.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ BUILDS ═══ */}
+            {tab === "builds" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                {[
+                  { key:"t1", color:T1, revPV:r.t1Rev, bldDed:r.t1Bld, vans:st.vansT1 },
+                  { key:"t2", color:T2, revPV:r.t2Rev, bldDed:r.t2Bld, vans:st.vansT2 },
+                ].map(b => {
+                  const mg = b.revPV - b.bldDed;
+                  return (
+                    <div key={b.key} style={{ ...CARD, border:`1px solid ${b.color}44` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                        <div style={{ width:10, height:10, borderRadius:"50%", background:b.color, flexShrink:0 }} />
+                        <span style={{ ...M, fontSize:12, color:b.color, fontWeight:700 }}>{builds[b.key].name}</span>
+                      </div>
+                      <Row label="Sale Price (incl. GST)"   value={fmtAUD(builds[b.key].salePrice)} accent={b.color} />
+                      <Row label="Build Cost (incl. GST)"   value={fmtAUD(builds[b.key].buildCost)} indent />
+                      <Row label="Revenue ex GST / van"     value={fmtAUD(b.revPV)}                 indent />
+                      <Row label="Build Cost ex GST / van"  value={fmtAUD(b.bldDed)}                indent />
+                      <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                      <Row label="Gross Margin / Van"       value={fmtAUD(mg)}                      accent={b.color} bold />
+                      <Row label="Margin %"                 value={fmtPct(mg / b.revPV)}            accent={b.color} indent />
+                      <Row label="Vans this plan"           value={`${b.vans} vans`}                 indent />
+                      <Row label="Total Gross Contribution" value={fmtAUD(mg * b.vans)}              accent={b.color} bold last />
+                    </div>
+                  );
+                })}
+                <div style={CARD}>
+                  <span style={SL}>Side-by-Side</span>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:6 }}>
+                    <div /><div style={{ ...M, fontSize:10, color:T1, fontWeight:700, textAlign:"center" }}>{builds.t1.name.split("—")[0]}</div>
+                    <div style={{ ...M, fontSize:10, color:T2, fontWeight:700, textAlign:"center" }}>{builds.t2.name.split("—")[0]}</div>
+                  </div>
+                  {[
+                    { l:"Sale Price", v1:fmtAUD(builds.t1.salePrice), v2:fmtAUD(builds.t2.salePrice) },
+                    { l:"Build Cost", v1:fmtAUD(builds.t1.buildCost), v2:fmtAUD(builds.t2.buildCost) },
+                    { l:"Gross/Van",  v1:fmtAUD(r.t1Rev-r.t1Bld),     v2:fmtAUD(r.t2Rev-r.t2Bld) },
+                    { l:"Margin %",   v1:fmtPct((r.t1Rev-r.t1Bld)/r.t1Rev), v2:fmtPct((r.t2Rev-r.t2Bld)/r.t2Rev) },
+                  ].map(row => (
+                    <div key={row.l} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, padding:"5px 0", borderBottom:"1px solid #0d1926" }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070" }}>{row.l}</span>
+                      <span style={{ ...M, fontSize:12, color:T1, fontWeight:600, textAlign:"center" }}>{row.v1}</span>
+                      <span style={{ ...M, fontSize:12, color:T2, fontWeight:600, textAlign:"center" }}>{row.v2}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAX ═══ */}
+            {tab === "tax" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={CARD}>
+                  <span style={SL}>Taxable Income</span>
+                  <Row label="Total Revenue (ex GST)"  value={fmtAUD(r.annRev)}         accent={T1} />
+                  <Row label="Build Costs (ex GST)"    value={`–${fmtAUD(r.annBld)}`}   indent />
+                  <Row label="Running Expenses"         value={`–${fmtAUD(r.expDed)}`}   indent />
+                  <Row label="Owner Super Deduction"    value={`–${fmtAUD(r.supDed)}`}   indent />
+                  {cfg.empEnabled && <Row label="Staff Wages + Super + WC" value={`–${fmtAUD(r.eAllDed)}`} accent={EM} indent sub="All staff costs deductible" />}
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="TAXABLE INCOME" value={fmtAUD(r.taxInc)} accent="#facc15" bold last />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Tax Calculation (2024–25)</span>
+                  <Row label="Gross Tax (brackets)"    value={fmtAUD(r.gTax)}           accent="#f87171" />
+                  <Row label="Less: LITO Offset"       value={`–${fmtAUD(r.litoAmt)}`}  accent="#4ade80" indent />
+                  <Row label="Less: Small Biz Offset"  value={`–${fmtAUD(r.sbito)}`}    accent="#4ade80" indent />
+                  <Row label="Medicare Levy (2%)"      value={fmtAUD(r.medicare)}        indent />
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="NET TAX + MEDICARE"      value={fmtAUD(r.netTax)}          accent="#f87171" bold />
+                  <Row label="Net GST to ATO"          value={fmtAUD(r.netGST)}          accent="#fb923c" />
+                  <Row label="Rego &amp; Fees"         value={fmtAUD(r.regTot+r.dealAnn+cfg.workers)} />
+                  {cfg.empEnabled && <Row label="Staff Govt Costs" value={fmtAUD(r.eGovt)} accent={EM} />}
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="TOTAL GOVT COSTS" value={fmtAUD(r.totGovt)} accent="#f87171" bold last />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>ATO Bracket Position</span>
+                  {BRACKETS.map((b, i) => {
+                    const prev = i===0 ? 0 : BRACKETS[i-1].top;
+                    const inB = r.taxInc > prev, isCur = r.taxInc <= b.top && r.taxInc > prev;
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:7, marginBottom:4, background: isCur ? `${b.color}14` : "transparent", border:`1px solid ${isCur ? b.color+"55" : "transparent"}` }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background: inB ? b.color : "#1e3045", flexShrink:0 }} />
+                        <span style={{ ...M, fontSize:12, color: inB ? "#ccd8e8" : "#334455", flex:1 }}>{b.label}</span>
+                        <span style={{ ...M, fontSize:12, color:b.color, fontWeight: isCur ? 700 : 400 }}>{b.rate}</span>
+                        {isCur && <span style={{ ...M, fontSize:8, color:b.color, background:`${b.color}22`, padding:"2px 6px", borderRadius:8 }}>◀ HERE</span>}
+                      </div>
+                    );
+                  })}
+                  <div style={{ background:"#0d1926", borderRadius:8, padding:"9px 12px", marginTop:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070", textTransform:"uppercase" }}>Taxable Income</span>
+                      <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:700 }}>{fmtAUD(r.taxInc)}</span>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070", textTransform:"uppercase" }}>Effective Rate</span>
+                      <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:700 }}>{fmtPct(r.effTax)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Quarterly BAS</span>
+                  {["Q1 — 28 Oct","Q2 — 28 Feb","Q3 — 28 Apr","Q4 — 28 Jul"].map((q, i) => (
+                    <div key={i} style={{ background:"#0d1926", borderRadius:8, padding:"9px 12px", marginBottom:8 }}>
+                      <div style={{ ...M, fontSize:11, color:"#8899aa", marginBottom:4 }}>{q}</div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                        <span style={{ ...M, fontSize:11, color:"#4a6070" }}>GST</span>
+                        <span style={{ ...M, fontSize:13, color:"#fb923c", fontWeight:700 }}>{fmtAUD(r.netGST/4)}</span>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom: cfg.empEnabled ? 3 : 0 }}>
+                        <span style={{ ...M, fontSize:11, color:"#4a6070" }}>PAYG (owner)</span>
+                        <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:600 }}>{fmtAUD(r.paygQtr)}</span>
+                      </div>
+                      {cfg.empEnabled && (
+                        <div style={{ display:"flex", justifyContent:"space-between" }}>
+                          <span style={{ ...M, fontSize:11, color:"#4a6070" }}>PAYG Withholding (staff)</span>
+                          <span style={{ ...M, fontSize:13, color:EM, fontWeight:600 }}>{fmtAUD(r.ePAYG/4)}</span>
+                        </div>
+                      )}
+                      <div style={{ height:1, background:"#1a2535", margin:"6px 0 4px" }} />
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ ...M, fontSize:11, color:"#8899aa", fontWeight:700 }}>Total BAS</span>
+                        <span style={{ ...M, fontSize:14, color:"#e8f4fd", fontWeight:700 }}>{fmtAUD(r.netGST/4 + r.paygQtr + (cfg.empEnabled ? r.ePAYG/4 : 0))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ STAFF ═══ */}
+            {tab === "staff" && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={{ ...CARD, border: cfg.empEnabled ? `1px solid ${EM}44` : "1px solid #1e3045" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: cfg.empEnabled ? 12 : 0 }}>
+                    <div>
+                      <span style={{ ...SL, color: cfg.empEnabled ? EM : "#4a6070", marginBottom:2 }}>Employees</span>
+                      {!cfg.empEnabled && <div style={{ ...M, fontSize:9, color:"#334455" }}>Toggle on to model staff costs</div>}
+                    </div>
+                    <Toggle value={cfg.empEnabled} onChange={sc("empEnabled")} />
+                  </div>
+                  {cfg.empEnabled && <>
+                    <Slider label="Number of Employees"  value={cfg.numEmployees} onChange={sc("numEmployees")} min={1}     max={20}     step={1}    format="number"   color={EM} />
+                    <Slider label="Average Annual Wage"  value={cfg.avgWage}      onChange={sc("avgWage")}      min={45000} max={150000} step={1000} format="currency" color={EM} note="Per employee before super" />
+                    <Slider label="Super Guarantee Rate" value={cfg.superRate}    onChange={sc("superRate")}    min={0.115} max={0.15}   step={0.005} format="pct"     color={EM} note="11.5% SGC 2024–25" />
+                    <Slider label="Workers Comp Rate"    value={cfg.wcEmpRate}    onChange={sc("wcEmpRate")}    min={0.005} max={0.10}   step={0.001} format="pct"     color={EM} note="~2–6% trade/construction" />
+                  </>}
+                </div>
+
+                {cfg.empEnabled && r && <>
+                  <div style={{ ...CARD, border:`1px solid ${EM}44` }}>
+                    <span style={{ ...SL, color:EM }}>Staff Cost Summary (Annual)</span>
+                    <Row label="Gross Wages"           value={fmtAUD(r.wages)}              accent="#e8f4fd" sub={`${cfg.numEmployees} × ${fmtAUD(cfg.avgWage)}`} />
+                    <Row label="Super Guarantee (SGC)" value={fmtAUD(r.eSup)}               accent={EM} indent sub={`${fmtPct(cfg.superRate)} — paid quarterly`} />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="TOTAL WAGES BILL"      value={fmtAUD(r.wageBill)}           accent={EM} bold last />
+                  </div>
+                  <div style={{ ...CARD, border:"1px solid #f8717144" }}>
+                    <span style={{ ...SL, color:"#f87171" }}>Govt Obligations on Staff</span>
+                    <Row label="Super Guarantee"  value={fmtAUD(r.eSup)}  accent={EM}      sub="28 Oct · 28 Jan · 28 Apr · 28 Jul" />
+                    <Row label="Workers Comp"     value={fmtAUD(r.eWC)}   accent="#f87171" indent sub={`${fmtPct(cfg.wcEmpRate)} of wages`} />
+                    <Row label="Payroll Tax"      value={r.ePT > 0 ? fmtAUD(r.ePT) : "Nil"} accent={r.ePT>0?"#f87171":"#4ade80"} indent sub={r.ePT>0?"5.45% above $1.2M":`${fmtAUD(r.wages)} — below threshold`} />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="TOTAL GOVT (staff)" value={fmtAUD(r.eGovt)} accent="#f87171" bold last />
+                  </div>
+                  <div style={CARD}>
+                    <span style={SL}>PAYG Withholding</span>
+                    <Row label="Annual (all staff)" value={fmtAUD(r.ePAYG)}     accent={EM} sub="Deducted from wages, remitted via BAS" />
+                    <Row label="Per Quarter"        value={fmtAUD(r.ePAYG/4)}   accent={EM} indent last />
+                    <div style={{ ...M, fontSize:9, color:"#4a6070", marginTop:8, lineHeight:1.5 }}>Employees' income tax — not a business cost. Shown as it affects your BAS cash flow.</div>
+                  </div>
+                </>}
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
