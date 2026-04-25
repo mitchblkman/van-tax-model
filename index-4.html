@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1520" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Van Tax" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Van Tax Model</title>
+
+  <!-- React + Babel via CDN — no install needed -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; overflow-x: hidden; background: #0d1520; }
+    body { overscroll-behavior: none; -webkit-font-smoothing: antialiased; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; }
+    input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #1e3045; border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: currentColor; margin-top: -10px; cursor: pointer; box-shadow: 0 0 0 3px #0d152088; }
+    input[type=text] { background: #0a1520; border: 1px solid #1e3045; border-radius: 6px; color: #ccd8e8; font-family: 'DM Mono', monospace; font-size: 11px; padding: 5px 8px; width: 100%; }
+    input[type=text]:focus { outline: none; border-color: #4fc3f7; }
+    .tab-scroll { display: flex; overflow-x: auto; scrollbar-width: none; }
+    .tab-scroll::-webkit-scrollbar { display: none; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #1e3045; border-radius: 2px; }
+  </style>
+  <link rel="apple-touch-icon" href="data:image/png;base64,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" />
+  <script>
+    // Inline PWA manifest
+    const manifestData = {
+  "short_name": "Van Tax",
+  "name": "Van Tax Model",
+  "description": "NSW Sole Trader campervan build tax and profit calculator",
+  "icons": [
+    {"src": "data:image/png;base64,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", "type": "image/png", "sizes": "192x192", "purpose": "any maskable"},
+    {"src": "data:image/png;base64,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", "type": "image/png", "sizes": "512x512", "purpose": "any maskable"}
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0d1520",
+  "background_color": "#0d1520",
+  "categories": ["finance", "business", "utilities"]
+};
+    const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+    const manifestURL = URL.createObjectURL(blob);
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestURL;
+    document.head.appendChild(link);
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback } = React;
+
+    // ── Formatters ─────────────────────────────────────────────────────────
+    const fmtAUD = (n) => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString();
+    const fmtPct = (n) => `${(n * 100).toFixed(1)}%`;
+
+    // ── Tax logic ──────────────────────────────────────────────────────────
+    function grossTax(ti) {
+      if (ti <= 18200) return 0;
+      if (ti <= 45000) return (ti - 18200) * 0.19;
+      if (ti <= 120000) return 5092 + (ti - 45000) * 0.325;
+      if (ti <= 180000) return 29467 + (ti - 120000) * 0.37;
+      return 51667 + (ti - 180000) * 0.45;
+    }
+    function lito(ti) {
+      if (ti <= 37500) return 700;
+      if (ti <= 45000) return 700 - (ti - 37500) * 0.05;
+      if (ti <= 66667) return 700 - (ti - 37500) * 0.05 - (ti - 45000) * 0.015;
+      return 0;
+    }
+    function empPayg(wage) {
+      const w = wage / 52;
+      if (w <= 359) return 0;
+      if (w <= 438) return Math.max(0, (w * 0.19 - 68.35) * 52);
+      if (w <= 865) return (w * 0.2348 - 83.88) * 52;
+      if (w <= 1282) return (w * 0.219 - 69.19) * 52;
+      if (w <= 2307) return (w * 0.3477 - 236.88) * 52;
+      if (w <= 3461) return (w * 0.345 - 230.66) * 52;
+      return (w * 0.39 - 386.82) * 52;
+    }
+
+    const BRACKETS = [
+      { label: "$0–$18,200",  top: 18200,    rate: "0%",    color: "#4ade80" },
+      { label: "$18k–$45k",   top: 45000,    rate: "19¢",   color: "#a3e635" },
+      { label: "$45k–$120k",  top: 120000,   rate: "32.5¢", color: "#facc15" },
+      { label: "$120k–$180k", top: 180000,   rate: "37¢",   color: "#fb923c" },
+      { label: "$180k+",      top: Infinity, rate: "45¢",   color: "#f87171" },
+    ];
+
+    // ── Defaults ───────────────────────────────────────────────────────────
+    const DEFAULT_BUILDS = {
+      t1: { name: "Type 1 — Budget",  salePrice: 45000, buildCost: 28000 },
+      t2: { name: "Type 2 — Premium", salePrice: 77500, buildCost: 51500 },
+    };
+    const DEFAULT_STRATS = [
+      { name: "Year 1 — Entry",   vansT1: 8, vansT2: 2 },
+      { name: "Year 2 — Growth",  vansT1: 5, vansT2: 5 },
+      { name: "Year 3 — Premium", vansT1: 2, vansT2: 8 },
+    ];
+    const DEFAULT_CFG = {
+      running: 18000, superAmt: 10000, paygRate: 0.04,
+      ctp: 650, rego: 380, dutyRate: 0.03, vanBase: 25000,
+      dealer: 1100, trust: 285, workers: 1200,
+      gstOnBuild: 0.80, gstOnExp: 0.70,
+      empEnabled: false, numEmployees: 1, avgWage: 65000,
+      superRate: 0.115, wcEmpRate: 0.022,
+    };
+
+    // ── Compute ────────────────────────────────────────────────────────────
+    function compute(c, builds, vT1, vT2) {
+      const G = 0.10, total = vT1 + vT2;
+      if (total === 0) return null;
+      const t1Rev = builds.t1.salePrice / 1.1, t2Rev = builds.t2.salePrice / 1.1;
+      const t1Bld = builds.t1.buildCost / (1 + G * c.gstOnBuild);
+      const t2Bld = builds.t2.buildCost / (1 + G * c.gstOnBuild);
+      const annRev = t1Rev * vT1 + t2Rev * vT2;
+      const annBld = t1Bld * vT1 + t2Bld * vT2;
+      const gstOut = annRev * G;
+      const gstInB = ((builds.t1.buildCost * c.gstOnBuild / 1.1) * G * vT1) + ((builds.t2.buildCost * c.gstOnBuild / 1.1) * G * vT2);
+      const gstInE = (c.running * c.gstOnExp / 1.1) * G;
+      const netGST = gstOut - gstInB - gstInE;
+      const expDed = c.running / (1 + G * c.gstOnExp);
+      const supDed = c.superAmt;
+      const wages = c.empEnabled ? c.numEmployees * c.avgWage : 0;
+      const eSup = wages * c.superRate, eWC = wages * c.wcEmpRate;
+      const wageBill = wages + eSup;
+      const ePT = c.empEnabled && wages > 1200000 ? (wages - 1200000) * 0.0545 : 0;
+      const ePAYG = c.empEnabled ? c.numEmployees * empPayg(c.avgWage) : 0;
+      const eGovt = eSup + eWC + ePT;
+      const eAllDed = c.empEnabled ? wageBill + eWC + ePT : 0;
+      const taxInc = annRev - annBld - expDed - supDed - eAllDed;
+      const gTax = grossTax(taxInc), li = lito(taxInc);
+      const sb = Math.min(1000, gTax * 0.16), med = taxInc * 0.02;
+      const netTax = Math.max(0, gTax - li - sb + med);
+      const paygAnn = taxInc * c.paygRate;
+      const regTot = (c.vanBase * c.dutyRate + c.ctp + c.rego) * total;
+      const dealAnn = c.dealer + c.trust;
+      const totGovt = netGST + netTax + regTot + dealAnn + c.workers + eGovt;
+      const netProf = annRev - annBld - expDed - totGovt - (c.empEnabled ? wageBill : 0);
+      return {
+        total, vT1, vT2, t1Rev, t2Rev, t1Bld, t2Bld,
+        t1GP: (t1Rev - t1Bld) * vT1, t2GP: (t2Rev - t2Bld) * vT2,
+        annRev, annBld, expDed, supDed, taxInc,
+        gstOut, gstInB, gstInE, netGST,
+        gTax, litoAmt: li, sbito: sb, medicare: med, netTax,
+        paygAnn, paygQtr: paygAnn / 4,
+        regTot, dealAnn,
+        wages, eSup, eWC, ePT, ePAYG, eGovt, wageBill, eAllDed,
+        totGovt, netProf,
+        netMargin: netProf / Math.max(1, annRev),
+        effTax: netTax / Math.max(1, taxInc),
+        effGovt: totGovt / Math.max(1, annRev),
+        profPerVan: netProf / total,
+      };
+    }
+
+    // ── Style tokens ───────────────────────────────────────────────────────
+    const M = { fontFamily: "'DM Mono', monospace" };
+    const CARD = { background: "#111e2e", border: "1px solid #1e3045", borderRadius: 12, padding: "13px 14px", marginBottom: 10 };
+    const SL = { ...M, fontSize: 9, color: "#4a6070", textTransform: "uppercase", letterSpacing: "0.13em", display: "block", marginBottom: 9 };
+    const T1 = "#4fc3f7", T2 = "#c084fc", EM = "#f59e0b";
+
+    // ── Atoms ──────────────────────────────────────────────────────────────
+    function Row({ label, value, accent, bold, indent, last, sub }) {
+      return (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom: last ? "none" : "1px solid #0d1926" }}>
+          <div style={{ flex:1, marginRight:8, paddingLeft: indent ? 10 : 0 }}>
+            <span style={{ ...M, fontSize:12, color: bold ? "#ccd8e8" : "#7a94a8", fontWeight: bold ? 700 : 400 }}>{label}</span>
+            {sub && <div style={{ ...M, fontSize:9, color:"#334455", marginTop:1 }}>{sub}</div>}
+          </div>
+          <span style={{ ...M, fontSize:13, color: accent || (bold ? "#e8f4fd" : "#556677"), fontWeight: bold ? 700 : 500, flexShrink:0 }}>{value}</span>
+        </div>
+      );
+    }
+
+    function Bar({ label, value, max, color }) {
+      const w = Math.min(100, max > 0 ? (value / max) * 100 : 0);
+      return (
+        <div style={{ marginBottom:9 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+            <span style={{ ...M, fontSize:11, color:"#7a94a8" }}>{label}</span>
+            <span style={{ ...M, fontSize:11, color, fontWeight:700 }}>{fmtAUD(value)}</span>
+          </div>
+          <div style={{ height:5, background:"#0d1926", borderRadius:3 }}>
+            <div style={{ width:`${w}%`, height:"100%", background:color, borderRadius:3, transition:"width 0.3s ease" }} />
+          </div>
+        </div>
+      );
+    }
+
+    function Slider({ label, value, onChange, min, max, step, format, note, color = T1 }) {
+      const display = format === "currency" ? fmtAUD(value) : format === "pct" ? fmtPct(value) : value.toLocaleString();
+      return (
+        <div style={{ marginBottom:13 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:1 }}>
+            <span style={{ ...M, fontSize:11, color:"#8899aa" }}>{label}</span>
+            <span style={{ ...M, fontSize:15, fontWeight:700, color }}>{display}</span>
+          </div>
+          {note && <div style={{ ...M, fontSize:9, color:"#334455", marginBottom:2 }}>{note}</div>}
+          <input type="range" min={min} max={max} step={step} value={value}
+            onChange={e => onChange(Number(e.target.value))}
+            style={{ width:"100%", accentColor:color, cursor:"pointer", color }} />
+        </div>
+      );
+    }
+
+    function Toggle({ value, onChange }) {
+      return (
+        <div onClick={() => onChange(!value)} style={{
+          width:44, height:24, borderRadius:12, cursor:"pointer", flexShrink:0,
+          background: value ? EM : "#1e3045", position:"relative", transition:"background 0.2s",
+          border:`1px solid ${value ? EM : "#2a3f55"}`,
+        }}>
+          <div style={{ position:"absolute", top:3, left: value ? 22 : 3, width:16, height:16, borderRadius:"50%", background: value ? "#fff" : "#4a6070", transition:"left 0.2s" }} />
+        </div>
+      );
+    }
+
+    const TABS = [
+      { id:"strategy", icon:"▦", label:"Strategy" },
+      { id:"overview", icon:"◈", label:"Overview"  },
+      { id:"builds",   icon:"⬡", label:"Builds"    },
+      { id:"tax",      icon:"◉", label:"Tax"        },
+      { id:"staff",    icon:"◧", label:"Staff"      },
+    ];
+
+    // ── localStorage helpers ───────────────────────────────────────────────
+    const load = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
+    const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+    // ── App ────────────────────────────────────────────────────────────────
+    function App() {
+      const [cfg, setCfg]           = useState(() => load("vtm_cfg", DEFAULT_CFG));
+      const [builds, setBuilds]     = useState(() => load("vtm_builds", DEFAULT_BUILDS));
+      const [strats, setStrats]     = useState(() => load("vtm_strats", DEFAULT_STRATS));
+      const [active, setActive]     = useState(() => load("vtm_active", 0));
+      const [tab, setTab]           = useState("strategy");
+      const [adv, setAdv]           = useState(false);
+      const [flash, setFlash]       = useState(false);
+
+      useEffect(() => { save("vtm_cfg",    cfg);    }, [cfg]);
+      useEffect(() => { save("vtm_builds", builds); }, [builds]);
+      useEffect(() => { save("vtm_strats", strats); }, [strats]);
+      useEffect(() => { save("vtm_active", active); }, [active]);
+
+      const showFlash = useCallback(() => { setFlash(true); setTimeout(() => setFlash(false), 1200); }, []);
+      useEffect(() => { showFlash(); }, [cfg, builds, strats]);
+
+      const sc  = k => v => setCfg(c => ({ ...c, [k]: v }));
+      const sb  = (t, k) => v => setBuilds(b => ({ ...b, [t]: { ...b[t], [k]: v } }));
+      const ss  = (i, k) => v => setStrats(s => s.map((x, j) => j === i ? { ...x, [k]: v } : x));
+      const sn  = (i, v) => setStrats(s => s.map((x, j) => j === i ? { ...x, name: v } : x));
+
+      const st      = strats[active];
+      const r       = useMemo(() => compute(cfg, builds, st.vansT1, st.vansT2), [cfg, builds, st]);
+      const allR    = useMemo(() => strats.map(s => compute(cfg, builds, s.vansT1, s.vansT2)), [cfg, builds, strats]);
+
+      const reset = () => { if (window.confirm("Reset all data to defaults?")) { setCfg(DEFAULT_CFG); setBuilds(DEFAULT_BUILDS); setStrats(DEFAULT_STRATS); setActive(0); } };
+
+      return (
+        <div style={{ background:"#0d1520", minHeight:"100dvh", color:"#ccd8e8", display:"flex", flexDirection:"column", width:"100%", maxWidth:"100vw", overflowX:"hidden" }}>
+
+          {/* ── Header ────────────────────────────────────────────────── */}
+          <div style={{ position:"sticky", top:0, zIndex:10, background:"#0d1520", borderBottom:"1px solid #1a2535" }}>
+            <div style={{ padding:"10px 14px 0" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                <div>
+                  <div style={{ ...M, fontSize:8, color:"#3a5060", letterSpacing:"0.2em", textTransform:"uppercase", marginBottom:1 }}>NSW · Sole Trader · 2024–25</div>
+                  <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:22, color:"#e8f4fd", letterSpacing:"0.06em", lineHeight:1 }}>VAN TAX MODEL</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:4 }}>
+                  {flash && <span style={{ ...M, fontSize:9, color:"#4ade80" }}>✓ saved</span>}
+                  <button onClick={reset} style={{ background:"none", border:"1px solid #1e3045", borderRadius:6, cursor:"pointer", fontFamily:"'DM Mono',monospace", fontSize:9, color:"#3a5060", padding:"4px 8px", textTransform:"uppercase" }}>Reset</button>
+                </div>
+              </div>
+
+              {r && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:8 }}>
+                  {[
+                    { l:"Revenue",    v: fmtAUD(r.annRev),  c: T1 },
+                    { l:"Net Profit", v: fmtAUD(r.netProf), c: r.netProf >= 0 ? "#4ade80" : "#f87171" },
+                    { l:"Tax",        v: fmtAUD(r.netTax),  c: "#facc15" },
+                  ].map(k => (
+                    <div key={k.l} style={{ background:"#0a1520", border:"1px solid #1e3045", borderRadius:8, padding:"7px 8px" }}>
+                      <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:2 }}>{k.l}</div>
+                      <div style={{ ...M, fontSize:15, fontWeight:700, color:k.c, lineHeight:1 }}>{k.v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="tab-scroll">
+                {TABS.map(t => (
+                  <button key={t.id} onClick={() => setTab(t.id)} style={{
+                    background:"none", border:"none", cursor:"pointer", flexShrink:0,
+                    padding:"7px 12px", fontFamily:"'DM Mono', monospace", fontSize:11,
+                    letterSpacing:"0.08em", textTransform:"uppercase",
+                    color: tab === t.id ? (t.id==="staff" ? EM : t.id==="builds" ? T2 : T1) : "#3a5060",
+                    borderBottom: tab === t.id ? `2px solid ${t.id==="staff" ? EM : t.id==="builds" ? T2 : T1}` : "2px solid transparent",
+                    borderRadius:0,
+                  }}>{t.icon} {t.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Body ──────────────────────────────────────────────────── */}
+          <div style={{ flex:1, overflowY:"auto", width:"100%", WebkitOverflowScrolling:"touch" }}>
+
+            {/* ═══ STRATEGY ═══ */}
+            {tab === "strategy" && (
+              <div style={{ padding:"12px 14px 80px" }}>
+
+                {/* Build type definitions */}
+                <div style={CARD}>
+                  <span style={SL}>Define Build Types</span>
+                  {["t1","t2"].map((key, bi) => {
+                    const col = key === "t1" ? T1 : T2;
+                    const gm = builds[key].salePrice / 1.1 - builds[key].buildCost / (1 + 0.10 * 0.80);
+                    return (
+                      <div key={key}>
+                        {bi > 0 && <div style={{ height:1, background:"#1a2535", margin:"10px 0 14px" }} />}
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                          <div style={{ width:10, height:10, borderRadius:"50%", background:col, flexShrink:0 }} />
+                          <input type="text" value={builds[key].name} onChange={e => sb(key,"name")(e.target.value)} style={{ color:col, borderColor:col+"44" }} />
+                        </div>
+                        <Slider label="Sale Price (incl. GST)" value={builds[key].salePrice} onChange={sb(key,"salePrice")} min={15000} max={150000} step={500} format="currency" color={col} />
+                        <Slider label="Build Cost (incl. GST)" value={builds[key].buildCost} onChange={sb(key,"buildCost")} min={10000} max={120000} step={500} format="currency" color={col} />
+                        <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 0" }}>
+                          <span style={{ ...M, fontSize:11, color:"#4a6070" }}>Gross margin / van</span>
+                          <span style={{ ...M, fontSize:13, fontWeight:700, color:col }}>{fmtAUD(gm)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Strategy planner */}
+                <div style={CARD}>
+                  <span style={SL}>12-Month Strategy Planner</span>
+
+                  {/* Plan selector */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:10 }}>
+                    <div />
+                    {strats.map((s, i) => (
+                      <button key={i} onClick={() => setActive(i)} style={{
+                        background: active===i ? "#1a2e42" : "none",
+                        border:`1px solid ${active===i ? T1 : "#1e3045"}`,
+                        borderRadius:8, padding:"6px 4px", cursor:"pointer",
+                      }}>
+                        <div style={{ ...M, fontSize:9, color: active===i ? T1 : "#4a6070", fontWeight:700 }}>
+                          {active===i ? "▶ ACTIVE" : `Plan ${i+1}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Names */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:12 }}>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", display:"flex", alignItems:"center" }}>Name</div>
+                    {strats.map((s, i) => (
+                      <input key={i} type="text" value={s.name} onChange={e => sn(i, e.target.value)}
+                        style={{ fontSize:9, padding:"3px 5px", borderColor: active===i ? T1+"55" : "#1e3045" }} />
+                    ))}
+                  </div>
+
+                  {/* T1 sliders */}
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:T1 }} />
+                      <span style={{ ...M, fontSize:10, color:T1 }}>{builds.t1.name} — vans/yr</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4 }}>
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ ...M, fontSize:22, fontWeight:700, color:T1 }}>{st.vansT1}</span>
+                      </div>
+                      {strats.map((s, i) => (
+                        <div key={i}>
+                          <div style={{ ...M, fontSize:14, fontWeight:700, color:T1, textAlign:"center", marginBottom:2 }}>{s.vansT1}</div>
+                          <input type="range" min={0} max={30} step={1} value={s.vansT1}
+                            onChange={e => ss(i,"vansT1")(Number(e.target.value))}
+                            style={{ width:"100%", accentColor:T1, color:T1 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* T2 sliders */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:T2 }} />
+                      <span style={{ ...M, fontSize:10, color:T2 }}>{builds.t2.name} — vans/yr</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4 }}>
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ ...M, fontSize:22, fontWeight:700, color:T2 }}>{st.vansT2}</span>
+                      </div>
+                      {strats.map((s, i) => (
+                        <div key={i}>
+                          <div style={{ ...M, fontSize:14, fontWeight:700, color:T2, textAlign:"center", marginBottom:2 }}>{s.vansT2}</div>
+                          <input type="range" min={0} max={30} step={1} value={s.vansT2}
+                            onChange={e => ss(i,"vansT2")(Number(e.target.value))}
+                            style={{ width:"100%", accentColor:T2, color:T2 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Total row */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, padding:"6px 0", borderTop:"1px solid #1a2535", marginBottom:12 }}>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", display:"flex", alignItems:"center" }}>Total</div>
+                    {strats.map((s, i) => (
+                      <div key={i} style={{ textAlign:"center" }}>
+                        <span style={{ ...M, fontSize:15, fontWeight:700, color:"#e8f4fd" }}>{s.vansT1+s.vansT2}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Results comparison */}
+                  {[
+                    { label:"Revenue",   key:"annRev",    color:T1,        fmt:fmtAUD },
+                    { label:"GST (ATO)", key:"netGST",    color:"#fb923c", fmt:fmtAUD },
+                    { label:"Inc. Tax",  key:"netTax",    color:"#f87171", fmt:fmtAUD },
+                    { label:"Govt Total",key:"totGovt",   color:"#f87171", fmt:fmtAUD },
+                    { label:"Net Profit",key:"netProf",   color:"#4ade80", fmt:fmtAUD, bold:true },
+                    { label:"Margin",    key:"netMargin", color:"#facc15", fmt:fmtPct, bold:true },
+                  ].map(row => (
+                    <div key={row.key} style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr 1fr", gap:4, marginBottom:4 }}>
+                      <div style={{ ...M, fontSize:9, color:"#4a6070", display:"flex", alignItems:"center", lineHeight:1.3 }}>{row.label}</div>
+                      {allR.map((res, i) => (
+                        <div key={i} style={{ background: active===i ? "#0f1c2c" : "transparent", borderRadius:6, padding:"5px 4px", textAlign:"center", border:`1px solid ${active===i ? "#1e3045" : "transparent"}` }}>
+                          <span style={{ ...M, fontSize:12, fontWeight: row.bold ? 700 : 500, color: res ? (row.key==="netProf" && res[row.key]<0 ? "#f87171" : row.color) : "#334455" }}>
+                            {res ? row.fmt(res[row.key]) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Active plan detail */}
+                {r && (
+                  <div style={{ ...CARD, border:`1px solid ${T1}33` }}>
+                    <span style={{ ...SL, color:T1 }}>Active Plan — {st.name}</span>
+                    <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                      {[
+                        { key:"t1", color:T1, vans:st.vansT1, gross:r.t1GP },
+                        { key:"t2", color:T2, vans:st.vansT2, gross:r.t2GP },
+                      ].map(b => (
+                        <div key={b.key} style={{ flex:Math.max(b.vans,0.5), background:b.color+"14", border:`1px solid ${b.color}33`, borderRadius:10, padding:"10px 12px", minWidth:0 }}>
+                          <div style={{ ...M, fontSize:9, color:b.color, textTransform:"uppercase", marginBottom:3 }}>{builds[b.key].name.split("—")[0]}</div>
+                          <div style={{ ...M, fontSize:22, fontWeight:700, color:b.color }}>{b.vans}</div>
+                          <div style={{ ...M, fontSize:9, color:"#4a6070" }}>{fmtAUD(b.gross)} gross</div>
+                        </div>
+                      ))}
+                    </div>
+                    <Row label="Revenue (ex GST)"    value={fmtAUD(r.annRev)}          accent={T1} />
+                    <Row label="Build Costs"         value={`–${fmtAUD(r.annBld)}`}    indent />
+                    <Row label="Running Expenses"    value={`–${fmtAUD(r.expDed)}`}    indent />
+                    {cfg.empEnabled && <Row label="Staff Wages + Super" value={`–${fmtAUD(r.wageBill)}`} accent={EM} indent />}
+                    <Row label="All Govt Costs"      value={`–${fmtAUD(r.totGovt)}`}   accent="#fb923c" indent />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="NET PROFIT"          value={fmtAUD(r.netProf)}          accent={r.netProf>=0 ? "#4ade80" : "#f87171"} bold />
+                    <Row label="Per Van"             value={fmtAUD(r.profPerVan)}       accent="#4ade80" last />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══ OVERVIEW ═══ */}
+            {tab === "overview" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={CARD}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <span style={SL}>Global Inputs</span>
+                    <button onClick={() => setAdv(v => !v)} style={{ background:"none", border:"1px solid #1e3045", borderRadius:6, cursor:"pointer", fontFamily:"'DM Mono',monospace", fontSize:9, color: adv ? T1 : "#3a5060", padding:"3px 10px", textTransform:"uppercase" }}>{adv ? "▲ Less" : "▼ More"}</button>
+                  </div>
+                  <Slider label="Running Expenses / Year" value={cfg.running}   onChange={sc("running")}   min={0}    max={80000}  step={500}   format="currency" note="Insurance, tools, fuel, marketing" />
+                  <Slider label="Concessional Super"      value={cfg.superAmt}  onChange={sc("superAmt")}  min={0}    max={30000}  step={500}   format="currency" note="Pre-tax, deductible (cap $30k)" />
+                  <Slider label="PAYG Instalment Rate"    value={cfg.paygRate}  onChange={sc("paygRate")}  min={0.01} max={0.10}   step={0.005} format="pct" />
+                  {adv && <>
+                    <div style={{ height:1, background:"#1a2535", margin:"4px 0 10px" }} />
+                    <Slider label="Van Purchase Price (duty)" value={cfg.vanBase}    onChange={sc("vanBase")}    min={5000}  max={80000} step={500}   format="currency" />
+                    <Slider label="Duty Rate"                 value={cfg.dutyRate}   onChange={sc("dutyRate")}   min={0.01}  max={0.06}  step={0.005} format="pct" note="NSW ~3%" />
+                    <Slider label="CTP / Van"                 value={cfg.ctp}        onChange={sc("ctp")}        min={300}   max={2000}  step={50}    format="currency" />
+                    <Slider label="Rego Fee / Van"            value={cfg.rego}       onChange={sc("rego")}       min={100}   max={1000}  step={10}    format="currency" />
+                    <Slider label="Dealer Licence"            value={cfg.dealer}     onChange={sc("dealer")}     min={500}   max={3000}  step={50}    format="currency" />
+                    <Slider label="Trust Account Fee"         value={cfg.trust}      onChange={sc("trust")}      min={0}     max={1000}  step={25}    format="currency" />
+                    <Slider label="Owner Workers Comp"        value={cfg.workers}    onChange={sc("workers")}    min={0}     max={5000}  step={100}   format="currency" />
+                    <Slider label="GST on Build Inputs %"     value={cfg.gstOnBuild} onChange={sc("gstOnBuild")} min={0.5}   max={1}     step={0.05}  format="pct" />
+                    <Slider label="GST on Running Exp %"      value={cfg.gstOnExp}   onChange={sc("gstOnExp")}   min={0.3}   max={1}     step={0.05}  format="pct" />
+                  </>}
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                  <div style={{ ...CARD, marginBottom:0 }}>
+                    <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>Annual Revenue</div>
+                    <div style={{ ...M, fontSize:16, fontWeight:700, color:T1 }}>{fmtAUD(r.annRev)}</div>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", marginTop:2 }}>{r.total} vans · {st.name}</div>
+                  </div>
+                  <div style={{ ...CARD, marginBottom:0 }}>
+                    <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>Net Profit</div>
+                    <div style={{ ...M, fontSize:16, fontWeight:700, color: r.netProf>=0 ? "#4ade80" : "#f87171" }}>{fmtAUD(r.netProf)}</div>
+                    <div style={{ ...M, fontSize:9, color:"#3a5060", marginTop:2 }}>{fmtAUD(r.profPerVan)} / van</div>
+                  </div>
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Build Mix — {st.name}</span>
+                  <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                    {[{key:"t1",color:T1,vans:st.vansT1,gross:r.t1GP},{key:"t2",color:T2,vans:st.vansT2,gross:r.t2GP}].map(b => (
+                      <div key={b.key} style={{ flex:1, background:b.color+"14", border:`1px solid ${b.color}33`, borderRadius:10, padding:"10px 12px" }}>
+                        <div style={{ ...M, fontSize:9, color:b.color, textTransform:"uppercase", marginBottom:4 }}>{builds[b.key].name}</div>
+                        <div style={{ ...M, fontSize:22, fontWeight:700, color:b.color }}>{b.vans}</div>
+                        <div style={{ ...M, fontSize:9, color:"#4a6070" }}>{fmtAUD(b.gross)} gross</div>
+                      </div>
+                    ))}
+                  </div>
+                  <Bar label="T1 Gross Profit" value={r.t1GP} max={r.t1GP+r.t2GP} color={T1} />
+                  <Bar label="T2 Gross Profit" value={r.t2GP} max={r.t1GP+r.t2GP} color={T2} />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Annual P&amp;L</span>
+                  <Row label="Revenue (ex GST)"     value={fmtAUD(r.annRev)}         accent={T1} />
+                  <Row label="Build Costs (ex GST)" value={`–${fmtAUD(r.annBld)}`}  accent="#f87171" indent />
+                  <Row label="Running Expenses"      value={`–${fmtAUD(r.expDed)}`}  indent />
+                  {cfg.empEnabled && <Row label="Staff Wages + Super" value={`–${fmtAUD(r.wageBill)}`} accent={EM} indent />}
+                  <Row label="All Govt Costs"        value={`–${fmtAUD(r.totGovt)}`} accent="#fb923c" indent />
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="NET PROFIT" value={fmtAUD(r.netProf)} accent={r.netProf>=0?"#4ade80":"#f87171"} bold last />
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginTop:10 }}>
+                    {[
+                      { l:"Margin",  v:fmtPct(r.netMargin), c:"#4ade80" },
+                      { l:"Govt %",  v:fmtPct(r.effGovt),   c:"#fb923c" },
+                      { l:"Tax Rate",v:fmtPct(r.effTax),    c:"#facc15" },
+                    ].map(k => (
+                      <div key={k.l} style={{ background:"#0a1520", borderRadius:8, padding:"7px 6px", textAlign:"center" }}>
+                        <div style={{ ...M, fontSize:8, color:"#3a5060", textTransform:"uppercase", marginBottom:3 }}>{k.l}</div>
+                        <div style={{ ...M, fontSize:14, color:k.c, fontWeight:700 }}>{k.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ BUILDS ═══ */}
+            {tab === "builds" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                {[
+                  { key:"t1", color:T1, revPV:r.t1Rev, bldDed:r.t1Bld, vans:st.vansT1 },
+                  { key:"t2", color:T2, revPV:r.t2Rev, bldDed:r.t2Bld, vans:st.vansT2 },
+                ].map(b => {
+                  const mg = b.revPV - b.bldDed;
+                  return (
+                    <div key={b.key} style={{ ...CARD, border:`1px solid ${b.color}44` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                        <div style={{ width:10, height:10, borderRadius:"50%", background:b.color, flexShrink:0 }} />
+                        <span style={{ ...M, fontSize:12, color:b.color, fontWeight:700 }}>{builds[b.key].name}</span>
+                      </div>
+                      <Row label="Sale Price (incl. GST)"   value={fmtAUD(builds[b.key].salePrice)} accent={b.color} />
+                      <Row label="Build Cost (incl. GST)"   value={fmtAUD(builds[b.key].buildCost)} indent />
+                      <Row label="Revenue ex GST / van"     value={fmtAUD(b.revPV)}                 indent />
+                      <Row label="Build Cost ex GST / van"  value={fmtAUD(b.bldDed)}                indent />
+                      <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                      <Row label="Gross Margin / Van"       value={fmtAUD(mg)}                      accent={b.color} bold />
+                      <Row label="Margin %"                 value={fmtPct(mg / b.revPV)}            accent={b.color} indent />
+                      <Row label="Vans this plan"           value={`${b.vans} vans`}                 indent />
+                      <Row label="Total Gross Contribution" value={fmtAUD(mg * b.vans)}              accent={b.color} bold last />
+                    </div>
+                  );
+                })}
+                <div style={CARD}>
+                  <span style={SL}>Side-by-Side</span>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:6 }}>
+                    <div /><div style={{ ...M, fontSize:10, color:T1, fontWeight:700, textAlign:"center" }}>{builds.t1.name.split("—")[0]}</div>
+                    <div style={{ ...M, fontSize:10, color:T2, fontWeight:700, textAlign:"center" }}>{builds.t2.name.split("—")[0]}</div>
+                  </div>
+                  {[
+                    { l:"Sale Price", v1:fmtAUD(builds.t1.salePrice), v2:fmtAUD(builds.t2.salePrice) },
+                    { l:"Build Cost", v1:fmtAUD(builds.t1.buildCost), v2:fmtAUD(builds.t2.buildCost) },
+                    { l:"Gross/Van",  v1:fmtAUD(r.t1Rev-r.t1Bld),     v2:fmtAUD(r.t2Rev-r.t2Bld) },
+                    { l:"Margin %",   v1:fmtPct((r.t1Rev-r.t1Bld)/r.t1Rev), v2:fmtPct((r.t2Rev-r.t2Bld)/r.t2Rev) },
+                  ].map(row => (
+                    <div key={row.l} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, padding:"5px 0", borderBottom:"1px solid #0d1926" }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070" }}>{row.l}</span>
+                      <span style={{ ...M, fontSize:12, color:T1, fontWeight:600, textAlign:"center" }}>{row.v1}</span>
+                      <span style={{ ...M, fontSize:12, color:T2, fontWeight:600, textAlign:"center" }}>{row.v2}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ TAX ═══ */}
+            {tab === "tax" && r && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={CARD}>
+                  <span style={SL}>Taxable Income</span>
+                  <Row label="Total Revenue (ex GST)"  value={fmtAUD(r.annRev)}         accent={T1} />
+                  <Row label="Build Costs (ex GST)"    value={`–${fmtAUD(r.annBld)}`}   indent />
+                  <Row label="Running Expenses"         value={`–${fmtAUD(r.expDed)}`}   indent />
+                  <Row label="Owner Super Deduction"    value={`–${fmtAUD(r.supDed)}`}   indent />
+                  {cfg.empEnabled && <Row label="Staff Wages + Super + WC" value={`–${fmtAUD(r.eAllDed)}`} accent={EM} indent sub="All staff costs deductible" />}
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="TAXABLE INCOME" value={fmtAUD(r.taxInc)} accent="#facc15" bold last />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Tax Calculation (2024–25)</span>
+                  <Row label="Gross Tax (brackets)"    value={fmtAUD(r.gTax)}           accent="#f87171" />
+                  <Row label="Less: LITO Offset"       value={`–${fmtAUD(r.litoAmt)}`}  accent="#4ade80" indent />
+                  <Row label="Less: Small Biz Offset"  value={`–${fmtAUD(r.sbito)}`}    accent="#4ade80" indent />
+                  <Row label="Medicare Levy (2%)"      value={fmtAUD(r.medicare)}        indent />
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="NET TAX + MEDICARE"      value={fmtAUD(r.netTax)}          accent="#f87171" bold />
+                  <Row label="Net GST to ATO"          value={fmtAUD(r.netGST)}          accent="#fb923c" />
+                  <Row label="Rego &amp; Fees"         value={fmtAUD(r.regTot+r.dealAnn+cfg.workers)} />
+                  {cfg.empEnabled && <Row label="Staff Govt Costs" value={fmtAUD(r.eGovt)} accent={EM} />}
+                  <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                  <Row label="TOTAL GOVT COSTS" value={fmtAUD(r.totGovt)} accent="#f87171" bold last />
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>ATO Bracket Position</span>
+                  {BRACKETS.map((b, i) => {
+                    const prev = i===0 ? 0 : BRACKETS[i-1].top;
+                    const inB = r.taxInc > prev, isCur = r.taxInc <= b.top && r.taxInc > prev;
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", borderRadius:7, marginBottom:4, background: isCur ? `${b.color}14` : "transparent", border:`1px solid ${isCur ? b.color+"55" : "transparent"}` }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background: inB ? b.color : "#1e3045", flexShrink:0 }} />
+                        <span style={{ ...M, fontSize:12, color: inB ? "#ccd8e8" : "#334455", flex:1 }}>{b.label}</span>
+                        <span style={{ ...M, fontSize:12, color:b.color, fontWeight: isCur ? 700 : 400 }}>{b.rate}</span>
+                        {isCur && <span style={{ ...M, fontSize:8, color:b.color, background:`${b.color}22`, padding:"2px 6px", borderRadius:8 }}>◀ HERE</span>}
+                      </div>
+                    );
+                  })}
+                  <div style={{ background:"#0d1926", borderRadius:8, padding:"9px 12px", marginTop:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070", textTransform:"uppercase" }}>Taxable Income</span>
+                      <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:700 }}>{fmtAUD(r.taxInc)}</span>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ ...M, fontSize:11, color:"#4a6070", textTransform:"uppercase" }}>Effective Rate</span>
+                      <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:700 }}>{fmtPct(r.effTax)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={CARD}>
+                  <span style={SL}>Quarterly BAS</span>
+                  {["Q1 — 28 Oct","Q2 — 28 Feb","Q3 — 28 Apr","Q4 — 28 Jul"].map((q, i) => (
+                    <div key={i} style={{ background:"#0d1926", borderRadius:8, padding:"9px 12px", marginBottom:8 }}>
+                      <div style={{ ...M, fontSize:11, color:"#8899aa", marginBottom:4 }}>{q}</div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                        <span style={{ ...M, fontSize:11, color:"#4a6070" }}>GST</span>
+                        <span style={{ ...M, fontSize:13, color:"#fb923c", fontWeight:700 }}>{fmtAUD(r.netGST/4)}</span>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom: cfg.empEnabled ? 3 : 0 }}>
+                        <span style={{ ...M, fontSize:11, color:"#4a6070" }}>PAYG (owner)</span>
+                        <span style={{ ...M, fontSize:13, color:"#facc15", fontWeight:600 }}>{fmtAUD(r.paygQtr)}</span>
+                      </div>
+                      {cfg.empEnabled && (
+                        <div style={{ display:"flex", justifyContent:"space-between" }}>
+                          <span style={{ ...M, fontSize:11, color:"#4a6070" }}>PAYG Withholding (staff)</span>
+                          <span style={{ ...M, fontSize:13, color:EM, fontWeight:600 }}>{fmtAUD(r.ePAYG/4)}</span>
+                        </div>
+                      )}
+                      <div style={{ height:1, background:"#1a2535", margin:"6px 0 4px" }} />
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ ...M, fontSize:11, color:"#8899aa", fontWeight:700 }}>Total BAS</span>
+                        <span style={{ ...M, fontSize:14, color:"#e8f4fd", fontWeight:700 }}>{fmtAUD(r.netGST/4 + r.paygQtr + (cfg.empEnabled ? r.ePAYG/4 : 0))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ STAFF ═══ */}
+            {tab === "staff" && (
+              <div style={{ padding:"12px 14px 80px" }}>
+                <div style={{ ...CARD, border: cfg.empEnabled ? `1px solid ${EM}44` : "1px solid #1e3045" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: cfg.empEnabled ? 12 : 0 }}>
+                    <div>
+                      <span style={{ ...SL, color: cfg.empEnabled ? EM : "#4a6070", marginBottom:2 }}>Employees</span>
+                      {!cfg.empEnabled && <div style={{ ...M, fontSize:9, color:"#334455" }}>Toggle on to model staff costs</div>}
+                    </div>
+                    <Toggle value={cfg.empEnabled} onChange={sc("empEnabled")} />
+                  </div>
+                  {cfg.empEnabled && <>
+                    <Slider label="Number of Employees"  value={cfg.numEmployees} onChange={sc("numEmployees")} min={1}     max={20}     step={1}    format="number"   color={EM} />
+                    <Slider label="Average Annual Wage"  value={cfg.avgWage}      onChange={sc("avgWage")}      min={45000} max={150000} step={1000} format="currency" color={EM} note="Per employee before super" />
+                    <Slider label="Super Guarantee Rate" value={cfg.superRate}    onChange={sc("superRate")}    min={0.115} max={0.15}   step={0.005} format="pct"     color={EM} note="11.5% SGC 2024–25" />
+                    <Slider label="Workers Comp Rate"    value={cfg.wcEmpRate}    onChange={sc("wcEmpRate")}    min={0.005} max={0.10}   step={0.001} format="pct"     color={EM} note="~2–6% trade/construction" />
+                  </>}
+                </div>
+
+                {cfg.empEnabled && r && <>
+                  <div style={{ ...CARD, border:`1px solid ${EM}44` }}>
+                    <span style={{ ...SL, color:EM }}>Staff Cost Summary (Annual)</span>
+                    <Row label="Gross Wages"           value={fmtAUD(r.wages)}              accent="#e8f4fd" sub={`${cfg.numEmployees} × ${fmtAUD(cfg.avgWage)}`} />
+                    <Row label="Super Guarantee (SGC)" value={fmtAUD(r.eSup)}               accent={EM} indent sub={`${fmtPct(cfg.superRate)} — paid quarterly`} />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="TOTAL WAGES BILL"      value={fmtAUD(r.wageBill)}           accent={EM} bold last />
+                  </div>
+                  <div style={{ ...CARD, border:"1px solid #f8717144" }}>
+                    <span style={{ ...SL, color:"#f87171" }}>Govt Obligations on Staff</span>
+                    <Row label="Super Guarantee"  value={fmtAUD(r.eSup)}  accent={EM}      sub="28 Oct · 28 Jan · 28 Apr · 28 Jul" />
+                    <Row label="Workers Comp"     value={fmtAUD(r.eWC)}   accent="#f87171" indent sub={`${fmtPct(cfg.wcEmpRate)} of wages`} />
+                    <Row label="Payroll Tax"      value={r.ePT > 0 ? fmtAUD(r.ePT) : "Nil"} accent={r.ePT>0?"#f87171":"#4ade80"} indent sub={r.ePT>0?"5.45% above $1.2M":`${fmtAUD(r.wages)} — below threshold`} />
+                    <div style={{ height:1, background:"#1a2535", margin:"6px 0" }} />
+                    <Row label="TOTAL GOVT (staff)" value={fmtAUD(r.eGovt)} accent="#f87171" bold last />
+                  </div>
+                  <div style={CARD}>
+                    <span style={SL}>PAYG Withholding</span>
+                    <Row label="Annual (all staff)" value={fmtAUD(r.ePAYG)}     accent={EM} sub="Deducted from wages, remitted via BAS" />
+                    <Row label="Per Quarter"        value={fmtAUD(r.ePAYG/4)}   accent={EM} indent last />
+                    <div style={{ ...M, fontSize:9, color:"#4a6070", marginTop:8, lineHeight:1.5 }}>Employees' income tax — not a business cost. Shown as it affects your BAS cash flow.</div>
+                  </div>
+                </>}
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
